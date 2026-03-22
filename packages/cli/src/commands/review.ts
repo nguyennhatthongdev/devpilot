@@ -11,7 +11,7 @@ import { getDevpilotPaths } from '../lib/file-utils.js';
 
 const CODE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.py', '.go', '.rs', '.java', '.swift', '.kt']);
 
-function sanitizeFilename(name: string): string {
+export function sanitizeFilename(name: string): string {
   return name
     .replace(/[^a-zA-Z0-9._-]/g, '-')
     .replace(/^\.+/, '')
