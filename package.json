@@ -1,0 +1,11 @@
+{
+  "name": "devpilot-monorepo",
+  "private": true,
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "build": "npm run build -w packages/cli",
+    "dev": "npm run dev -w packages/cli",
+    "test": "npm run test -w packages/cli",
+    "lint": "eslint packages/*/src"
+  }
+}

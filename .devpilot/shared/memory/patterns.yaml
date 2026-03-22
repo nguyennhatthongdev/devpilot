@@ -1,0 +1,46 @@
+- pattern: Use kebab-case for file names
+  scope: all
+  autoDetected: true
+  examples:
+    - good: memory-manager.ts
+  tags:
+    - naming
+    - conventions
+  id: pat-001
+  usageCount: 0
+  lastUsed: 2026-03-22T07:39:39.913Z
+- pattern: Use TypeScript for all source files
+  scope: all
+  autoDetected: true
+  examples:
+    - good: file.ts
+      bad: file.js
+  tags:
+    - language
+    - conventions
+  id: pat-002
+  usageCount: 0
+  lastUsed: 2026-03-22T07:39:39.914Z
+- pattern: Use kebab-case for file names
+  scope: all
+  autoDetected: true
+  examples:
+    - good: provider-manager.ts
+  tags:
+    - naming
+    - conventions
+  id: pat-003
+  usageCount: 0
+  lastUsed: 2026-03-22T07:48:12.544Z
+- pattern: Use TypeScript for all source files
+  scope: all
+  autoDetected: true
+  examples:
+    - good: file.ts
+      bad: file.js
+  tags:
+    - language
+    - conventions
+  id: pat-004
+  usageCount: 0
+  lastUsed: 2026-03-22T07:48:12.545Z

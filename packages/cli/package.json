@@ -1,0 +1,38 @@
+{
+  "name": "@devpilot/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "devpilot": "./dist/bin/devpilot.js"
+  },
+  "scripts": {
+    "dev": "tsup --watch",
+    "build": "tsup",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.63",
+    "@ai-sdk/google": "^3.0.52",
+    "@ai-sdk/openai": "^3.0.47",
+    "@fastify/cors": "^11.2.0",
+    "@fastify/static": "^9.0.0",
+    "@inquirer/prompts": "^8.3.2",
+    "ai": "^6.0.134",
+    "chalk": "^5.4.1",
+    "commander": "^12.1.0",
+    "fastify": "^5.8.2",
+    "fdir": "^6.5.0",
+    "gpt-tokenizer": "^3.4.0",
+    "ignore": "^7.0.5",
+    "ollama-ai-provider": "^1.2.0",
+    "open": "^11.0.0",
+    "ora": "^8.2.0",
+    "yaml": "^2.6.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.7",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
