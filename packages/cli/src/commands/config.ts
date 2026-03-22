@@ -1,6 +1,5 @@
-import { ConfigManager } from '../lib/config-manager.js';
-import { ProviderManager } from '../lib/llm/provider-manager.js';
-import { PROVIDER_MODELS, type ProviderName } from '../lib/llm/types.js';
+import { type ProviderName } from '../lib/llm/types.js';
+import { ManageConfigAction } from '../actions/manage-config.js';
 import chalk from 'chalk';
 import ora from 'ora';
 import { createInterface } from 'readline';
@@ -13,7 +12,7 @@ export async function configCommand(options: {
   testKey?: string;
   setModel?: string;
 }) {
-  const configManager = new ConfigManager();
+  const action = new ManageConfigAction();
 
   if (options.setKey) {
     const provider = options.setKey.toLowerCase();
@@ -33,37 +32,27 @@ export async function configCommand(options: {
     });
     rl.close();
 
-    if (!key.trim()) {
-      console.error(chalk.red('API key cannot be empty'));
+    const result = await action.setApiKey(provider as ProviderName, key);
+
+    if (!result.success) {
+      console.error(chalk.red(result.error));
       process.exit(1);
     }
 
-    const config = await configManager.loadGlobalConfig();
-    config.apiKeys[provider as keyof typeof config.apiKeys] = key.trim();
-
-    // Set as default model if first key configured
-    if (!config.defaultModel) {
-      config.defaultModel = PROVIDER_MODELS[provider as ProviderName][0];
-    }
-
-    await configManager.saveGlobalConfig(config);
     console.log(chalk.green(`✓ API key saved for ${provider}`));
 
   } else if (options.testKey) {
     const provider = options.testKey.toLowerCase() as ProviderName;
-    const config = await configManager.loadGlobalConfig();
-    const key = config.apiKeys[provider as keyof typeof config.apiKeys];
+    const spinner = ora(`Testing ${provider} API key...`).start();
 
-    if (!key) {
-      console.error(chalk.red(`No key configured for ${provider}`));
+    const result = await action.testApiKey(provider);
+
+    if (!result.success) {
+      spinner.fail(chalk.red(result.error));
       process.exit(1);
     }
 
-    const spinner = ora(`Testing ${provider} API key...`).start();
-    const providerManager = new ProviderManager();
-    const isValid = await providerManager.validateKey(provider, key);
-
-    if (isValid) {
+    if (result.data!.valid) {
       spinner.succeed(chalk.green(`✓ ${provider} key is valid`));
     } else {
       spinner.fail(chalk.red(`${provider} key is invalid`));
@@ -71,18 +60,28 @@ export async function configCommand(options: {
     }
 
   } else if (options.setModel) {
-    const config = await configManager.loadGlobalConfig();
-    config.defaultModel = options.setModel;
-    await configManager.saveGlobalConfig(config);
+    const result = await action.setModel(options.setModel);
+
+    if (!result.success) {
+      console.error(chalk.red(result.error));
+      process.exit(1);
+    }
+
     console.log(chalk.green(`✓ Default model set to ${options.setModel}`));
 
   } else {
     // Show current config (list-keys or default)
-    const config = await configManager.loadGlobalConfig();
+    const result = await action.getConfig();
+
+    if (!result.success) {
+      console.error(chalk.red(result.error));
+      process.exit(1);
+    }
+
+    const { apiKeys, defaultModel } = result.data!;
     console.log(chalk.blue('\nConfigured Providers:'));
 
-    const configuredProviders = Object.entries(config.apiKeys)
-      .filter(([, key]) => key);
+    const configuredProviders = Object.entries(apiKeys).filter(([, key]) => key);
 
     if (configuredProviders.length > 0) {
       for (const [provider, key] of configuredProviders) {
@@ -93,9 +92,9 @@ export async function configCommand(options: {
       console.log(chalk.dim('  No API keys configured'));
     }
 
-    if (config.defaultModel) {
+    if (defaultModel) {
       console.log(chalk.blue('\nDefault Model:'));
-      console.log(`  ${config.defaultModel}`);
+      console.log(`  ${defaultModel}`);
     }
   }
 }

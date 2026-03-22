@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sanitizeFilename } from '../src/commands/review.js';
+import { sanitizeFilename } from '../src/actions/run-review.js';
 import { resolve, relative, isAbsolute } from 'path';
 
 describe('sanitizeFilename', () => {

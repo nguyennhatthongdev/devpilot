@@ -1,28 +1,23 @@
-import Fastify from 'fastify';
 import chalk from 'chalk';
 import ora from 'ora';
-import { findAndBindPort } from '../lib/server/port-finder.js';
-import { registerApiRoutes } from '../lib/server/api-routes.js';
-import { getDashboardHtml } from '../lib/server/dashboard-html.js';
+import { StartDashboardAction } from '../actions/start-dashboard.js';
 
 export async function dashboardCommand() {
   const spinner = ora('Starting dashboard...').start();
 
   try {
     const projectRoot = process.cwd();
-    const app = Fastify();
+    const action = new StartDashboardAction();
 
-    // Serve dashboard HTML at root
-    const dashboardHtml = getDashboardHtml();
-    app.get('/', async (_req, reply) => {
-      reply.type('text/html').send(dashboardHtml);
-    });
+    const result = await action.execute(projectRoot);
 
-    // Register API routes
-    registerApiRoutes(app, projectRoot);
+    if (!result.success) {
+      spinner.fail(chalk.red('Failed to start dashboard'));
+      console.error(result.error);
+      process.exit(1);
+    }
 
-    // Bind directly to eliminate TOCTOU race condition
-    const port = await findAndBindPort(app);
+    const { app, port } = result.data!;
 
     spinner.succeed(chalk.green('Dashboard running!'));
     console.log(chalk.blue(`\n  DevPilot Dashboard`));

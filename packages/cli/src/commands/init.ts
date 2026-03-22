@@ -1,40 +1,24 @@
-import { writeFile } from 'fs/promises';
 import ora from 'ora';
 import chalk from 'chalk';
-import YAML from 'yaml';
-import { ensureDir, getDevpilotPaths, fileExists } from '../lib/file-utils.js';
+import { InitProjectAction } from '../actions/init-project.js';
 
 export async function initCommand() {
   const spinner = ora('Initializing DevPilot...').start();
 
   try {
-    const paths = getDevpilotPaths(process.cwd());
+    const action = new InitProjectAction();
+    const result = await action.execute(process.cwd());
 
-    // Check if already initialized
-    if (await fileExists(paths.sharedConfig)) {
+    if (!result.success) {
+      spinner.fail(chalk.red('Initialization failed'));
+      console.error(result.error);
+      process.exit(1);
+    }
+
+    if (result.data!.alreadyInitialized) {
       spinner.warn(chalk.yellow('DevPilot already initialized in this project.'));
       return;
     }
-
-    // Create shared directories (git-tracked)
-    await ensureDir(paths.shared);
-    await ensureDir(paths.sharedMemory);
-
-    // Create local directories (git-ignored)
-    await ensureDir(paths.local);
-    await ensureDir(paths.localReviews);
-    await ensureDir(paths.localCache);
-
-    // Write shared config
-    const defaultProjectConfig = {
-      excludePatterns: ['node_modules', '.git', 'dist'],
-      scanDepth: 10,
-    };
-    await writeFile(paths.sharedConfig, YAML.stringify(defaultProjectConfig));
-
-    // Write empty memory files
-    await writeFile(paths.sharedDecisions, YAML.stringify([]));
-    await writeFile(paths.sharedPatterns, YAML.stringify([]));
 
     spinner.succeed(chalk.green('DevPilot initialized successfully!'));
     console.log(chalk.blue('\nCreated:'));

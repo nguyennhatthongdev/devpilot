@@ -25,8 +25,8 @@ export function getDevpilotPaths(projectRoot: string) {
     localHealth: join(base, 'local', 'health.yaml'),
     localCache: join(base, 'local', 'cache'),
     sharedConfig: join(base, 'shared', 'config.yaml'),
-    sharedDecisions: join(base, 'shared', 'memory', 'decisions.yaml'),
-    sharedPatterns: join(base, 'shared', 'memory', 'patterns.yaml'),
+    sharedDecisions: join(base, 'shared', 'memory', 'decisions.md'),
+    sharedPatterns: join(base, 'shared', 'memory', 'patterns.md'),
     context: join(base, 'local', 'context.yaml'),
   };
 }

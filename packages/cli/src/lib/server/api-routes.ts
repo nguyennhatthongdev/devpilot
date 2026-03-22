@@ -3,6 +3,7 @@ import { join } from 'path';
 import YAML from 'yaml';
 import type { FastifyInstance } from 'fastify';
 import { getDevpilotPaths } from '../file-utils.js';
+import { parseDecisions, parsePatterns } from '../memory/markdown-parser.js';
 
 export function registerApiRoutes(app: FastifyInstance, projectRoot: string) {
   const paths = getDevpilotPaths(projectRoot);
@@ -28,12 +29,12 @@ export function registerApiRoutes(app: FastifyInstance, projectRoot: string) {
   app.get('/api/memory', async () => {
     try {
       const [decisionsRaw, patternsRaw] = await Promise.all([
-        readFile(paths.sharedDecisions, 'utf-8').catch(() => '[]'),
-        readFile(paths.sharedPatterns, 'utf-8').catch(() => '[]'),
+        readFile(paths.sharedDecisions, 'utf-8').catch(() => '# Decisions\n'),
+        readFile(paths.sharedPatterns, 'utf-8').catch(() => '# Patterns\n'),
       ]);
       return {
-        decisions: YAML.parse(decisionsRaw) ?? [],
-        patterns: YAML.parse(patternsRaw) ?? [],
+        decisions: parseDecisions(decisionsRaw),
+        patterns: parsePatterns(patternsRaw),
       };
     } catch {
       return { decisions: [], patterns: [] };

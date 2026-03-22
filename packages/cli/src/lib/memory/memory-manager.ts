@@ -1,7 +1,7 @@
 import { readFile, writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
-import YAML from 'yaml';
 import { Decision, Pattern, MemoryFilter } from './types.js';
+import { parseDecisions, serializeDecisions, parsePatterns, serializePatterns } from './markdown-parser.js';
 
 export class MemoryManager {
   private memoryDir: string;
@@ -36,8 +36,8 @@ export class MemoryManager {
 
   async getDecisions(filter?: MemoryFilter): Promise<Decision[]> {
     try {
-      const content = await readFile(join(this.memoryDir, 'decisions.yaml'), 'utf-8');
-      let decisions: Decision[] = YAML.parse(content) || [];
+      const content = await readFile(join(this.memoryDir, 'decisions.md'), 'utf-8');
+      let decisions: Decision[] = parseDecisions(content);
 
       if (filter?.tags) {
         decisions = decisions.filter(d => d.tags.some(tag => filter.tags!.includes(tag)));
@@ -56,8 +56,8 @@ export class MemoryManager {
 
   async getPatterns(filter?: MemoryFilter): Promise<Pattern[]> {
     try {
-      const content = await readFile(join(this.memoryDir, 'patterns.yaml'), 'utf-8');
-      let patterns: Pattern[] = YAML.parse(content) || [];
+      const content = await readFile(join(this.memoryDir, 'patterns.md'), 'utf-8');
+      let patterns: Pattern[] = parsePatterns(content);
 
       if (filter?.tags) {
         patterns = patterns.filter(p => p.tags.some(tag => filter.tags!.includes(tag)));
@@ -117,11 +117,11 @@ export class MemoryManager {
 
   private async saveDecisions(decisions: Decision[]): Promise<void> {
     await mkdir(this.memoryDir, { recursive: true });
-    await writeFile(join(this.memoryDir, 'decisions.yaml'), YAML.stringify(decisions));
+    await writeFile(join(this.memoryDir, 'decisions.md'), serializeDecisions(decisions));
   }
 
   private async savePatterns(patterns: Pattern[]): Promise<void> {
     await mkdir(this.memoryDir, { recursive: true });
-    await writeFile(join(this.memoryDir, 'patterns.yaml'), YAML.stringify(patterns));
+    await writeFile(join(this.memoryDir, 'patterns.md'), serializePatterns(patterns));
   }
 }

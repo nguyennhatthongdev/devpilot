@@ -1,18 +1,23 @@
 import { input, select, confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
-import { MemoryManager } from '../lib/memory/memory-manager.js';
-import { TokenCounter } from '../lib/memory/token-counter.js';
+import { ManageMemoryAction, type PruneStrategy } from '../actions/manage-memory.js';
 
 export async function memoryCommand(
   action: string,
   options: { type?: string },
 ) {
-  const memoryManager = new MemoryManager();
+  const memoryAction = new ManageMemoryAction();
 
   switch (action) {
     case 'list': {
-      const decisions = await memoryManager.getDecisions();
-      const patterns = await memoryManager.getPatterns();
+      const result = await memoryAction.list();
+
+      if (!result.success) {
+        console.error(chalk.red(result.error));
+        process.exit(1);
+      }
+
+      const { decisions, patterns } = result.data!;
 
       console.log(chalk.blue('\nArchitecture Decisions:'));
       if (decisions.length === 0) {
@@ -44,7 +49,7 @@ export async function memoryCommand(
         const rationale = await input({ message: 'Rationale:' });
         const tagsInput = await input({ message: 'Tags (comma-separated):' });
 
-        await memoryManager.addDecision({
+        const result = await memoryAction.addDecision({
           date: new Date().toISOString().split('T')[0],
           title,
           context,
@@ -52,6 +57,12 @@ export async function memoryCommand(
           rationale,
           tags: tagsInput.split(',').map(t => t.trim()).filter(Boolean),
         });
+
+        if (!result.success) {
+          console.error(chalk.red(result.error));
+          process.exit(1);
+        }
+
         console.log(chalk.green('✓ Decision added'));
       } else if (options.type === 'pattern') {
         const pattern = await input({ message: 'Pattern description:' });
@@ -68,13 +79,19 @@ export async function memoryCommand(
           });
         }
 
-        await memoryManager.addPattern({
+        const result = await memoryAction.addPattern({
           pattern,
           scope,
           autoDetected: false,
           examples,
           tags: tagsInput.split(',').map(t => t.trim()).filter(Boolean),
         });
+
+        if (!result.success) {
+          console.error(chalk.red(result.error));
+          process.exit(1);
+        }
+
         console.log(chalk.green('✓ Pattern added'));
       } else {
         console.error(chalk.red('Specify --type decision or --type pattern'));
@@ -94,22 +111,32 @@ export async function memoryCommand(
 
       const proceed = await confirm({ message: 'Proceed with pruning?' });
       if (proceed) {
-        const pruned = await memoryManager.pruneMemories(strategy);
-        console.log(chalk.green(`✓ Pruned ${pruned} memories`));
+        const result = await memoryAction.prune(strategy as PruneStrategy);
+
+        if (!result.success) {
+          console.error(chalk.red(result.error));
+          process.exit(1);
+        }
+
+        console.log(chalk.green(`✓ Pruned ${result.data!.prunedCount} memories`));
       }
       break;
     }
 
     case 'tokens': {
-      const tokenCounter = new TokenCounter();
-      const decisions = await memoryManager.getDecisions();
-      const patterns = await memoryManager.getPatterns();
-      const tokenCount = tokenCounter.estimateMemoryTokens(decisions, patterns);
+      const result = await memoryAction.getTokenCount();
+
+      if (!result.success) {
+        console.error(chalk.red(result.error));
+        process.exit(1);
+      }
+
+      const { tokenCount, decisionsCount, patternsCount } = result.data!;
 
       console.log(chalk.blue('\nToken Estimate:'));
       console.log(`  Memory tokens: ${tokenCount.toLocaleString()}`);
-      console.log(`  Decisions: ${decisions.length}`);
-      console.log(`  Patterns: ${patterns.length}`);
+      console.log(`  Decisions: ${decisionsCount}`);
+      console.log(`  Patterns: ${patternsCount}`);
       break;
     }
 
