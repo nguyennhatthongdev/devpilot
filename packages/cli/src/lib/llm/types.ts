@@ -14,12 +14,14 @@ export interface LLMResponse {
   };
 }
 
-export type ProviderName = 'anthropic' | 'openai' | 'google' | 'ollama';
+export const VALID_PROVIDERS = ['anthropic', 'openai', 'google', 'ollama'] as const;
+
+export type ProviderName = (typeof VALID_PROVIDERS)[number];
 
 export const PROVIDER_MODELS: Record<ProviderName, string[]> = {
   anthropic: ['claude-sonnet-4-5-20250929', 'claude-3-5-sonnet-20241022', 'claude-3-opus-20240229'],
   openai: ['gpt-4o', 'gpt-4o-mini', 'o1', 'o3-mini'],
-  google: ['gemini-2.0-flash', 'gemini-1.5-pro'],
+  google: ['gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'],
   ollama: ['llama3.3', 'qwen2.5', 'deepseek-r1'],
 };
 

@@ -1,4 +1,4 @@
-import { readFile, writeFile, mkdir } from 'fs/promises';
+import { readFile, writeFile, mkdir, chmod } from 'fs/promises';
 import { join } from 'path';
 import { homedir } from 'os';
 import YAML from 'yaml';
@@ -34,8 +34,9 @@ export class ConfigManager {
   }
 
   async saveGlobalConfig(config: Config): Promise<void> {
-    await mkdir(this.globalConfigDir, { recursive: true });
-    await writeFile(this.globalConfigPath, YAML.stringify(config));
+    await mkdir(this.globalConfigDir, { recursive: true, mode: 0o700 });
+    await writeFile(this.globalConfigPath, YAML.stringify(config), { mode: 0o600 });
+    await chmod(this.globalConfigDir, 0o700);
   }
 
   async loadProjectConfig(projectRoot: string = process.cwd()): Promise<Partial<Config>> {

@@ -4,7 +4,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { ollama } from 'ollama-ai-provider';
 import { ConfigManager } from '../config-manager.js';
-import { GenerateOptions, LLMResponse, ProviderName, PROVIDER_MODELS, DEFAULT_MODEL } from './types.js';
+import { GenerateOptions, LLMResponse, ProviderName, VALID_PROVIDERS, PROVIDER_MODELS, DEFAULT_MODEL } from './types.js';
 
 export class ProviderManager {
   private configManager = new ConfigManager();
@@ -45,8 +45,16 @@ export class ProviderManager {
       temperature: options.temperature ?? 0.7,
     });
 
-    for await (const chunk of result.textStream) {
-      yield chunk;
+    try {
+      for await (const chunk of result.textStream) {
+        yield chunk;
+      }
+    } catch (error: unknown) {
+      const err = error as Record<string, unknown>;
+      if (err.status === 429 || err.code === 'ECONNRESET') {
+        throw new Error(`${provider} API error (retryable): ${(error as Error).message}. Try again in a few seconds.`);
+      }
+      throw new Error(`${provider} streaming failed: ${(error as Error).message}`);
     }
   }
 
@@ -86,8 +94,14 @@ export class ProviderManager {
     if (modelString) {
       // Parse "provider:model" format
       if (modelString.includes(':')) {
-        const [provider, model] = modelString.split(':') as [ProviderName, string];
-        return { provider, model };
+        const [provider, model] = modelString.split(':', 2);
+        if (!VALID_PROVIDERS.includes(provider as ProviderName)) {
+          throw new Error(`Invalid provider: ${provider}. Valid options: ${VALID_PROVIDERS.join(', ')}`);
+        }
+        if (!model || model.trim().length === 0) {
+          throw new Error('Model name cannot be empty. Format: provider:model');
+        }
+        return { provider: provider as ProviderName, model: model.trim() };
       }
       // Infer provider from model name
       for (const [provider, models] of Object.entries(PROVIDER_MODELS)) {
@@ -95,6 +109,11 @@ export class ProviderManager {
           return { provider: provider as ProviderName, model: modelString };
         }
       }
+      // Infer provider from common prefixes
+      if (modelString.startsWith('gpt-') || modelString.startsWith('o1') || modelString.startsWith('o3')) return { provider: 'openai', model: modelString };
+      if (modelString.startsWith('claude-')) return { provider: 'anthropic', model: modelString };
+      if (modelString.startsWith('gemini-')) return { provider: 'google', model: modelString };
+
       // Assume it's a custom model name, try anthropic first
       return { provider: 'anthropic', model: modelString };
     }

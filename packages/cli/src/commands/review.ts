@@ -1,4 +1,4 @@
-import { join, basename } from 'path';
+import { join, basename, resolve, relative, isAbsolute } from 'path';
 import { writeFile, mkdir, stat, readdir } from 'fs/promises';
 import ora from 'ora';
 import chalk from 'chalk';
@@ -11,24 +11,41 @@ import { getDevpilotPaths } from '../lib/file-utils.js';
 
 const CODE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.py', '.go', '.rs', '.java', '.swift', '.kt']);
 
+function sanitizeFilename(name: string): string {
+  return name
+    .replace(/[^a-zA-Z0-9._-]/g, '-')
+    .replace(/^\.+/, '')
+    .substring(0, 200);
+}
+
 export async function reviewCommand(target: string, options: { model?: string }) {
   const spinner = ora('Preparing review...').start();
 
   try {
     const rootPath = process.cwd();
+    const resolvedTarget = resolve(target);
+    const relPath = relative(rootPath, resolvedTarget);
+
+    // Prevent path traversal — target must be within project directory
+    if (relPath.startsWith('..') || isAbsolute(relPath)) {
+      spinner.fail(chalk.red('Target must be within project directory'));
+      console.error(chalk.dim('Hint: Use relative paths like ./src/file.ts'));
+      process.exit(1);
+    }
+
     const paths = getDevpilotPaths(rootPath);
 
     // Determine files to review
-    const targetStat = await stat(target);
+    const targetStat = await stat(resolvedTarget);
     let files: string[];
 
     if (targetStat.isDirectory()) {
-      const entries = await readdir(target, { recursive: true });
+      const entries = await readdir(resolvedTarget, { recursive: true });
       files = entries
-        .map(f => join(target, f as string))
+        .map(f => join(resolvedTarget, f as string))
         .filter(f => CODE_EXTENSIONS.has(f.slice(f.lastIndexOf('.'))));
     } else {
-      files = [target];
+      files = [resolvedTarget];
     }
 
     if (files.length === 0) {
@@ -71,9 +88,10 @@ export async function reviewCommand(target: string, options: { model?: string })
       const result = reviewParser.parse(fullReviewText, file, options.model || 'default');
       reviewFormatter.formatTerminal(result);
 
-      // Save review
+      // Save review with sanitized filename
       await mkdir(paths.localReviews, { recursive: true });
-      const reviewFileName = `${result.date}-${basename(file).replace(/\.[^.]+$/, '')}.md`;
+      const safeName = sanitizeFilename(basename(file).replace(/\.[^.]+$/, ''));
+      const reviewFileName = `${result.date}-${safeName}.md`;
       const reviewPath = join(paths.localReviews, reviewFileName);
       const markdown = reviewFormatter.formatMarkdown(result, fullReviewText);
       await writeFile(reviewPath, markdown);

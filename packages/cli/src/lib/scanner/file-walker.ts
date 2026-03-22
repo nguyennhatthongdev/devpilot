@@ -11,8 +11,12 @@ export class FileWalker {
     return api.withPromise();
   }
 
+  private static MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+
   async countLines(filePath: string): Promise<number> {
     try {
+      const stats = await stat(filePath);
+      if (stats.size > FileWalker.MAX_FILE_SIZE) return 0;
       const content = await readFile(filePath, 'utf-8');
       return content.split('\n').length;
     } catch {

@@ -1,7 +1,7 @@
 import Fastify from 'fastify';
 import chalk from 'chalk';
 import ora from 'ora';
-import { findAvailablePort } from '../lib/server/port-finder.js';
+import { findAndBindPort } from '../lib/server/port-finder.js';
 import { registerApiRoutes } from '../lib/server/api-routes.js';
 import { getDashboardHtml } from '../lib/server/dashboard-html.js';
 
@@ -10,8 +10,6 @@ export async function dashboardCommand() {
 
   try {
     const projectRoot = process.cwd();
-    const port = await findAvailablePort(3141);
-
     const app = Fastify();
 
     // Serve dashboard HTML at root
@@ -23,8 +21,8 @@ export async function dashboardCommand() {
     // Register API routes
     registerApiRoutes(app, projectRoot);
 
-    // Start server
-    await app.listen({ port, host: '127.0.0.1' });
+    // Bind directly to eliminate TOCTOU race condition
+    const port = await findAndBindPort(app);
 
     spinner.succeed(chalk.green('Dashboard running!'));
     console.log(chalk.blue(`\n  DevPilot Dashboard`));
@@ -40,12 +38,20 @@ export async function dashboardCommand() {
       // open package may not be available
     }
 
-    // Keep alive until Ctrl+C
-    process.on('SIGINT', async () => {
-      console.log(chalk.yellow('\nStopping dashboard...'));
-      await app.close();
-      process.exit(0);
-    });
+    // Graceful shutdown handler
+    const shutdown = async (signal: string) => {
+      console.log(chalk.yellow(`\nReceived ${signal}, stopping dashboard...`));
+      try {
+        await app.close();
+        process.exit(0);
+      } catch {
+        process.exit(1);
+      }
+    };
+
+    process.on('SIGINT', () => shutdown('SIGINT'));
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGHUP', () => shutdown('SIGHUP'));
   } catch (error: unknown) {
     spinner.fail(chalk.red('Failed to start dashboard'));
     console.error((error as Error).message);
