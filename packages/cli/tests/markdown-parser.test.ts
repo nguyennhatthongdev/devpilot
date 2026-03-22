@@ -64,6 +64,44 @@ describe('markdown-parser decisions', () => {
     const result = parseDecisions(md);
     expect(result[0].tags).toEqual([]);
   });
+
+  it('round-trips multi-line context/decision/rationale', () => {
+    const dec: Decision = {
+      ...sampleDecision,
+      context: 'We need a web framework\nthat supports plugins\nand has good performance',
+      decision: 'Use Fastify\nover Express and Koa',
+      rationale: 'Faster benchmarks\nplugin system\nTypeScript-first',
+    };
+    const md = serializeDecisions([dec]);
+    const result = parseDecisions(md);
+    expect(result[0].context).toBe('We need a web framework that supports plugins and has good performance');
+    expect(result[0].decision).toBe('Use Fastify over Express and Koa');
+    expect(result[0].rationale).toBe('Faster benchmarks plugin system TypeScript-first');
+  });
+
+  it('parses indented continuation lines', () => {
+    const md = `# Decisions\n\n## dec-001: Test\n- **Date:** 2026-03-22\n- **Context:** Line one\n  line two\n  line three\n- **Decision:** Single line\n- **Rationale:** Short\n- **Tags:** test\n- **Usage Count:** 0\n- **Last Used:** 2026-03-22\n`;
+    const result = parseDecisions(md);
+    expect(result[0].context).toBe('Line one line two line three');
+    expect(result[0].decision).toBe('Single line');
+  });
+
+  it('handles mixed single-line and multi-line decisions', () => {
+    const single: Decision = { ...sampleDecision };
+    const multi: Decision = {
+      ...sampleDecision,
+      id: 'dec-002',
+      title: 'Use Fastify',
+      context: 'Need fast server\nwith plugin support',
+      decision: 'Fastify chosen',
+      rationale: 'Best benchmarks\ngreat ecosystem',
+    };
+    const md = serializeDecisions([single, multi]);
+    const result = parseDecisions(md);
+    expect(result[0].context).toBe('Need strong typing');
+    expect(result[1].context).toBe('Need fast server with plugin support');
+    expect(result[1].rationale).toBe('Best benchmarks great ecosystem');
+  });
 });
 
 describe('markdown-parser patterns', () => {

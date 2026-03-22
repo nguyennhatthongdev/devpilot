@@ -2,14 +2,26 @@ import type { Decision, Pattern } from './types.js';
 
 // --- Decisions ---
 
+function serializeField(key: string, value: string): string {
+  if (!value.includes('\n')) {
+    return `- **${key}:** ${value}\n`;
+  }
+  const lines = value.split('\n');
+  let result = `- **${key}:** ${lines[0]}\n`;
+  for (const line of lines.slice(1)) {
+    result += `  ${line}\n`;
+  }
+  return result;
+}
+
 export function serializeDecisions(decisions: Decision[]): string {
   let md = '# Decisions\n';
   for (const d of decisions) {
     md += `\n## ${d.id}: ${d.title}\n`;
     md += `- **Date:** ${d.date}\n`;
-    md += `- **Context:** ${d.context}\n`;
-    md += `- **Decision:** ${d.decision}\n`;
-    md += `- **Rationale:** ${d.rationale}\n`;
+    md += serializeField('Context', d.context);
+    md += serializeField('Decision', d.decision);
+    md += serializeField('Rationale', d.rationale);
     md += `- **Tags:** ${d.tags.join(', ')}\n`;
     md += `- **Usage Count:** ${d.usageCount}\n`;
     md += `- **Last Used:** ${d.lastUsed}\n`;
@@ -94,10 +106,17 @@ export function parsePatterns(markdown: string): Pattern[] {
 
 function extractFields(lines: string[]): Record<string, string> {
   const fields: Record<string, string> = {};
+  let currentKey = '';
+
   for (const line of lines) {
     const match = line.match(/^- \*\*(.+?):\*\*\s*(.*)$/);
     if (match) {
-      fields[match[1]] = match[2].trim();
+      currentKey = match[1];
+      fields[currentKey] = match[2].trim();
+    } else if (currentKey && line.match(/^  \S/)) {
+      fields[currentKey] += ' ' + line.trim();
+    } else {
+      currentKey = '';
     }
   }
   return fields;
