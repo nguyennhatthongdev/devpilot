@@ -9,6 +9,7 @@ import { ensureDir, getDevpilotPaths } from '../lib/file-utils.js';
 import { PatternDetector } from '../lib/memory/pattern-detector.js';
 import { MemoryManager } from '../lib/memory/memory-manager.js';
 import { type ContextData } from '../lib/scanner/types.js';
+import { GitAnalyzer } from '../lib/scanner/git-analyzer.js';
 import { ActionResult } from './types.js';
 
 export interface ScanResult {
@@ -59,6 +60,10 @@ export class ScanProjectAction {
         dependencies,
         config.projectDefaults.excludePatterns,
       );
+
+      // Collect git stats (graceful fallback)
+      const gitAnalyzer = new GitAnalyzer(rootPath);
+      contextData.git = await gitAnalyzer.analyze();
 
       // Save to .devpilot/local/context.yaml
       await ensureDir(paths.local);

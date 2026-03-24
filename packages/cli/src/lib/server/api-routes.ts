@@ -4,6 +4,9 @@ import YAML from 'yaml';
 import type { FastifyInstance } from 'fastify';
 import { getDevpilotPaths } from '../file-utils.js';
 import { parseDecisions, parsePatterns } from '../memory/markdown-parser.js';
+import { HealthHistoryManager } from '../health/history-manager.js';
+import { MarkdownExporter } from '../health/markdown-exporter.js';
+import { HealthScore } from '../health/types.js';
 
 export function registerApiRoutes(app: FastifyInstance, projectRoot: string) {
   const paths = getDevpilotPaths(projectRoot);
@@ -58,6 +61,58 @@ export function registerApiRoutes(app: FastifyInstance, projectRoot: string) {
       return reviews;
     } catch {
       return [];
+    }
+  });
+
+  // History endpoint for dashboard chart
+  app.get('/api/history', async () => {
+    try {
+      const historyManager = new HealthHistoryManager();
+      return await historyManager.loadHistory(projectRoot);
+    } catch {
+      return [];
+    }
+  });
+
+  // Export as markdown
+  app.get('/api/export/markdown', async (req, reply) => {
+    try {
+      const content = await readFile(paths.localHealth, 'utf-8');
+      const score = YAML.parse(content) as HealthScore;
+      const exporter = new MarkdownExporter();
+      const markdown = exporter.generate(score);
+
+      reply.header('Content-Type', 'text/markdown');
+      reply.header('Content-Disposition', 'attachment; filename="health-report.md"');
+      return markdown;
+    } catch {
+      reply.status(500);
+      return { error: 'No health data. Run: devpilot health' };
+    }
+  });
+
+  // Export as JSON
+  app.get('/api/export/json', async (req, reply) => {
+    try {
+      const content = await readFile(paths.localHealth, 'utf-8');
+      const score = YAML.parse(content) as HealthScore;
+
+      const exportData = {
+        version: '1.0',
+        timestamp: score.scannedAt,
+        overallScore: score.overallScore,
+        trend: score.trend,
+        breakdown: score.breakdown,
+        testCoverage: score.testCoverage,
+        security: score.security,
+      };
+
+      reply.header('Content-Type', 'application/json');
+      reply.header('Content-Disposition', 'attachment; filename="health-report.json"');
+      return exportData;
+    } catch {
+      reply.status(500);
+      return { error: 'No health data. Run: devpilot health' };
     }
   });
 }
