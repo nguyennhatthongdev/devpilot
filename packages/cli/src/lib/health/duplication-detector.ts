@@ -1,49 +1,54 @@
 import { readFile } from 'fs/promises';
 import { DuplicationMetrics } from './types.js';
+import { detectLanguage, LANGUAGE_CONFIGS } from './language-config.js';
 
-// Simple line-based duplication detector for MVP
 // Finds repeated blocks of 5+ consecutive identical lines across files
 const MIN_BLOCK_SIZE = 5;
 
 export class DuplicationDetector {
   async detect(files: string[]): Promise<DuplicationMetrics> {
-    const lineHashes = new Map<string, number>(); // hash -> count
+    const blockHashes = new Map<string, number>();
     let totalLines = 0;
-    let duplicatedLines = 0;
 
     for (const file of files) {
-      if (!/\.(ts|tsx|js|jsx)$/.test(file)) continue;
+      const lang = detectLanguage(file);
+      if (!lang) continue;
 
       try {
         const content = await readFile(file, 'utf-8');
+        const commentPrefixes = LANGUAGE_CONFIGS[lang].lineComment;
         const lines = content.split('\n');
         totalLines += lines.length;
 
-        // Check blocks of MIN_BLOCK_SIZE lines
-        for (let i = 0; i <= lines.length - MIN_BLOCK_SIZE; i++) {
+        // Non-overlapping blocks (step = MIN_BLOCK_SIZE)
+        for (let i = 0; i <= lines.length - MIN_BLOCK_SIZE; i += MIN_BLOCK_SIZE) {
           const block = lines.slice(i, i + MIN_BLOCK_SIZE)
             .map(l => l.trim())
-            .filter(l => l.length > 0 && !l.startsWith('//') && !l.startsWith('*'))
+            .filter(l => l.length > 0 && !commentPrefixes.some(p => l.startsWith(p)) && !l.startsWith('*'))
             .join('\n');
 
-          if (block.length < 20) continue; // Skip trivial blocks
+          if (block.length < 20) continue;
 
-          const count = lineHashes.get(block) ?? 0;
-          lineHashes.set(block, count + 1);
+          const count = blockHashes.get(block) ?? 0;
+          blockHashes.set(block, count + 1);
         }
       } catch {
         // Skip unreadable files
       }
     }
 
-    // Count duplicated lines (blocks seen more than once)
-    for (const [block, count] of lineHashes) {
-      if (count > 1) {
-        duplicatedLines += block.split('\n').length * (count - 1);
-      }
+    // Count duplicate blocks (seen more than once)
+    let duplicateBlockCount = 0;
+    for (const count of blockHashes.values()) {
+      if (count > 1) duplicateBlockCount++;
     }
 
-    const percentage = totalLines > 0 ? Math.round((duplicatedLines / totalLines) * 1000) / 10 : 0;
+    // Use actual hashed block count instead of estimated total
+    const totalBlocks = blockHashes.size;
+    const percentage = totalBlocks > 0
+      ? Math.round((duplicateBlockCount / totalBlocks) * 1000) / 10
+      : 0;
+    const duplicatedLines = duplicateBlockCount * MIN_BLOCK_SIZE;
 
     let score = 100;
     if (percentage > 15) score = 20;

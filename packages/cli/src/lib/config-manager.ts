@@ -3,6 +3,15 @@ import { join } from 'path';
 import { homedir } from 'os';
 import YAML from 'yaml';
 
+export interface HealthConfig {
+  thresholds?: {
+    complexity?: { warn: number; error: number };
+    duplication?: { warn: number; error: number };
+    fileSize?: { large: number; warn: number };
+  };
+  weights?: Record<string, number>;
+}
+
 export interface Config {
   apiKeys: {
     anthropic?: string;
@@ -14,6 +23,7 @@ export interface Config {
     excludePatterns: string[];
     scanDepth: number;
   };
+  health?: HealthConfig;
 }
 
 export class ConfigManager {

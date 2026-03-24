@@ -4,7 +4,15 @@ import YAML from 'yaml';
 import { ComplexityAnalyzer } from '../lib/health/complexity-analyzer.js';
 import { DuplicationDetector } from '../lib/health/duplication-detector.js';
 import { DependencyChecker } from '../lib/health/dependency-checker.js';
+import { TestCoverageDetector } from '../lib/health/test-coverage-detector.js';
+import { SecurityAuditor } from '../lib/health/security-auditor.js';
 import { ScoreCalculator } from '../lib/health/score-calculator.js';
+import { HealthHistoryManager } from '../lib/health/history-manager.js';
+import { StyleConsistencyAnalyzer } from '../lib/health/style-consistency-analyzer.js';
+import { DeadCodeDetector } from '../lib/health/dead-code-detector.js';
+import { TodoTracker } from '../lib/health/todo-tracker.js';
+import { DocCoverageAnalyzer } from '../lib/health/doc-coverage-analyzer.js';
+import { ImportCycleDetector } from '../lib/health/import-cycle-detector.js';
 import { HealthScore } from '../lib/health/types.js';
 import { getDevpilotPaths, ensureDir } from '../lib/file-utils.js';
 import { FileWalker } from '../lib/scanner/file-walker.js';
@@ -16,53 +24,76 @@ export class RunHealthCheckAction {
     try {
       const paths = getDevpilotPaths(rootPath);
 
-      // Get file list — prefer context.yaml, fallback to fresh scan
-      let codeFiles: string[];
-      let contextLargestFiles: Array<{ path: string; lines: number }> = [];
+      // Always do a full file scan for accurate health analysis
+      const walker = new FileWalker();
+      const ignoreFilter = new IgnoreFilter();
+      await ignoreFilter.loadIgnoreFile(rootPath, '.gitignore');
+      await ignoreFilter.loadIgnoreFile(rootPath, '.devpilotignore');
+      ignoreFilter.addPatterns(['node_modules', '.git', 'dist', 'build']);
+      const allFiles = await walker.walk(rootPath, 10);
+      const codeFiles = ignoreFilter.filter(allFiles, rootPath);
 
+      // Get largest files from context for file size scoring
+      let contextLargestFiles: Array<{ path: string; lines: number }> = [];
       try {
         const contextContent = await readFile(paths.context, 'utf-8');
         const context = YAML.parse(contextContent);
         contextLargestFiles = context.fileStructure?.largestFiles ?? [];
-        codeFiles = contextLargestFiles.map((f: { path: string }) => join(rootPath, f.path));
       } catch {
-        // No context, do a quick scan
-        const walker = new FileWalker();
-        const ignoreFilter = new IgnoreFilter();
-        await ignoreFilter.loadIgnoreFile(rootPath, '.gitignore');
-        ignoreFilter.addPatterns(['node_modules', '.git', 'dist', 'build']);
-        const allFiles = await walker.walk(rootPath, 10);
-        codeFiles = ignoreFilter.filter(allFiles, rootPath);
+        // No context available
       }
 
-      // Run analyzers
-      const complexity = await new ComplexityAnalyzer().analyze(codeFiles);
-      const duplication = await new DuplicationDetector().detect(codeFiles);
-      const dependencies = await new DependencyChecker().check(rootPath);
+      // Run all analyzers in parallel
+      const [
+        complexity, duplication, dependencies, testCoverage, security,
+        styleConsistency, deadCode, todos, docCoverage, importCycles,
+      ] = await Promise.all([
+        new ComplexityAnalyzer().analyze(codeFiles),
+        new DuplicationDetector().detect(codeFiles),
+        new DependencyChecker().check(rootPath),
+        new TestCoverageDetector(rootPath).detect(),
+        new SecurityAuditor(rootPath).audit(),
+        new StyleConsistencyAnalyzer().analyze(codeFiles, rootPath),
+        new DeadCodeDetector().analyze(codeFiles, rootPath),
+        new TodoTracker().analyze(codeFiles, rootPath),
+        new DocCoverageAnalyzer().analyze(codeFiles, rootPath),
+        new ImportCycleDetector().analyze(codeFiles, rootPath),
+      ]);
 
       // Calculate scores
       const scoreCalculator = new ScoreCalculator();
       const fileSize = scoreCalculator.calculateFileSizeScore(contextLargestFiles);
 
-      const breakdown = { complexity, duplication, dependencies, fileSize };
-      const overallScore = scoreCalculator.calculateOverallScore(breakdown);
-      const trend = await scoreCalculator.calculateTrend(overallScore, rootPath);
+      const breakdown = {
+        complexity, duplication, dependencies, fileSize,
+        styleConsistency, deadCode, todos, docCoverage, importCycles,
+      };
+      const overallScore = scoreCalculator.calculateOverallScore(
+        breakdown, testCoverage, security,
+      );
+
+      // Use history-based trend instead of single previous scan
+      const historyManager = new HealthHistoryManager();
+      const history = await historyManager.loadHistory(rootPath);
+      const trend = history.length >= 2
+        ? historyManager.getTrend(history)
+        : await scoreCalculator.calculateTrend(overallScore, rootPath);
 
       const healthScore: HealthScore = {
         scannedAt: new Date().toISOString(),
         overallScore,
         breakdown,
+        testCoverage,
+        security,
         trend,
       };
 
-      // Save results
+      // Save results and history
       await ensureDir(paths.local);
       await writeFile(paths.localHealth, YAML.stringify(healthScore));
+      await historyManager.saveHistory(healthScore, rootPath);
 
-      return {
-        success: true,
-        data: healthScore,
-      };
+      return { success: true, data: healthScore };
     } catch (error) {
       return {
         success: false,

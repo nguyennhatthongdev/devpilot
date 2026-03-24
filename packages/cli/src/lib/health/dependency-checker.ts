@@ -3,6 +3,7 @@ import { join } from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { DependencyMetrics } from './types.js';
+import { detectPackageManager } from './package-manager-detector.js';
 
 const execAsync = promisify(exec);
 
@@ -12,16 +13,23 @@ export class DependencyChecker {
       const pkg = JSON.parse(await readFile(join(rootPath, 'package.json'), 'utf-8'));
       const total = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).length;
 
-      // Check outdated packages (with timeout)
+      // Detect package manager and check outdated packages
+      const manager = await detectPackageManager(rootPath);
       let outdatedData: Record<string, { current: string; latest: string }> = {};
       try {
-        const { stdout } = await execAsync('npm outdated --json 2>/dev/null || echo "{}"', {
-          cwd: rootPath,
-          timeout: 30000,
+        const { stdout } = await execAsync(`${manager} outdated --json`, {
+          cwd: rootPath, timeout: 30000,
         });
         outdatedData = JSON.parse(stdout || '{}');
-      } catch {
-        // npm outdated exits with code 1 when packages are outdated
+      } catch (error: any) {
+        // npm outdated exits with code 1 when outdated deps found — stdout has data
+        if (error.stdout) {
+          try {
+            outdatedData = JSON.parse(error.stdout);
+          } catch {
+            // Parse failed, leave empty
+          }
+        }
       }
 
       const outdated = Object.keys(outdatedData).length;
