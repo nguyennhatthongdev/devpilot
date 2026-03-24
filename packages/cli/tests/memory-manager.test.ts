@@ -36,7 +36,8 @@ describe('MemoryManager', () => {
   it('adds and retrieves patterns', async () => {
     await manager.addPattern({
       pattern: 'Use kebab-case for file names',
-      context: 'File naming convention',
+      scope: 'file-naming',
+      autoDetected: false,
       tags: ['naming'],
       examples: [{ good: 'my-component.ts', bad: 'MyComponent.ts' }],
     });

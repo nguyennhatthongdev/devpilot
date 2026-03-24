@@ -2,11 +2,12 @@ import type { Decision, Pattern } from './types.js';
 
 // --- Decisions ---
 
-function serializeField(key: string, value: string): string {
-  if (!value.includes('\n')) {
-    return `- **${key}:** ${value}\n`;
+function serializeField(key: string, value: string | undefined): string {
+  const safeValue = value || '';
+  if (!safeValue.includes('\n')) {
+    return `- **${key}:** ${safeValue}\n`;
   }
-  const lines = value.split('\n');
+  const lines = safeValue.split('\n');
   let result = `- **${key}:** ${lines[0]}\n`;
   for (const line of lines.slice(1)) {
     result += `  ${line}\n`;

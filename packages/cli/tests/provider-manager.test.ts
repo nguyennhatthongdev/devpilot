@@ -58,7 +58,7 @@ describe('provider inference from model prefix', () => {
   });
 
   it('infers google from gemini- prefix', () => {
-    const model = 'gemini-2.0-flash';
+    const model = 'gemini-2.5-flash';
     expect(model.startsWith('gemini-')).toBe(true);
   });
 });
